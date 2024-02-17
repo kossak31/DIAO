@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="pt">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIÃO</title>
+    <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.css" />
+    <script src="http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.js"></script>
+
+    <style>
+        body,
+        html,
+        #map {
+            height: 100%;
+            margin: 0;
+        }
+
+        #map {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1;
+        }
+
+        #addressInputContainer {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 2;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        #addressListContainer {
+    position: absolute;
+    bottom: 10px; /* Adjust the positioning */
+    left: 10px;
+    z-index: 2;
+    background-color: rgba(255, 255, 255, 0.8);
+    padding: 10px;
+    border-radius: 5px;
+    width: calc(100% - 20px); /* Adjust the width */
+    max-height: 50%; /* Set a maximum height */
+    overflow-y: auto; /* Enable vertical scrolling */
+}
+
+li {
+    margin-bottom: 5px; /* Add some bottom margin */
+}
+
+        #addressList {
+            list-style: none;
+            padding: 0;
+        }
+
+        .number-icon div {
+            font-size: 46px;
+            color: red;
+            font-weight: bold;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .remove-icon {
+            cursor: pointer;
+            color: red;
+            margin-left: 5px;
+        }
+
+        #addressData {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 2;
+            background-color: white;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <div id="addressInputContainer">
+        <input type="text" id="addressInput" placeholder="Enter an address">
+        <button onclick="addAddress()">Add Address</button>
+    </div>
+    <div id="addressListContainer">
+        <ul id="addressList"></ul>
+    </div>
+    <div id="addressData"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.24.0/axios.min.js"></script>
+    <script>
+        // Initialize Leaflet map
+        const map = L.map('map').setView([38.761229299955474, -9.16666569629169], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Store addresses
+        const addresses = [];
+        // Store polylines
+        const polylines = [];
+        // Store markers
+        const markers = [];
+
+        // Function to add address to the list
+        async function addAddress() {
+            const addressInput = document.getElementById('addressInput');
+            const address = addressInput.value.trim();
+            if (address) {
+                addressInput.value = '';
+                getAddress(address); // Call the function to get address details
+            }
+        }
+
+        // Function to update address list in the UI
+        function updateAddressList() {
+            const addressList = document.getElementById('addressList');
+            addressList.innerHTML = '';
+            addresses.forEach((address, index) => {
+                const li = document.createElement('li');
+                li.textContent = address;
+                const removeIcon = document.createElement('span');
+                removeIcon.className = 'remove-icon';
+                removeIcon.textContent = 'Remover';
+                removeIcon.onclick = () => removeAddress(index);
+                li.appendChild(removeIcon);
+                addressList.appendChild(li);
+            });
+        }
+
+        // Function to remove address from the list and update the view
+        function removeAddress(index) {
+            addresses.splice(index, 1);
+            updateAddressList();
+            calculateRoutes();
+        }
+
+        // Function to create a numbered icon for markers
+        function createNumberedIcon(number) {
+            return L.divIcon({
+                className: 'number-icon',
+                html: `<div>${number}</div>`,
+                iconSize: [30, 30]
+            });
+        }
+
+        // Function to get coordinates for an address using GraphHopper geocoding API
+        async function getCoordinates(address) {
+            try {
+                const response = await axios.get(`https://graphhopper.com/api/1/geocode?q=${encodeURIComponent(address)}&key=58206e1e-1673-430f-bc3e-b7bd6825d936`);
+                const coordinates = response.data.hits[0].point;
+                return coordinates;
+            } catch (error) {
+                console.error('Error fetching coordinates:', error);
+                return null;
+            }
+        }
+
+        // Function to get address details using OpenStreetMap Nominatim API
+        async function getAddress(address) {
+            try {
+                const response = await axios.get(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`);
+                if (response.data.length === 0) {
+                    // If no address found, show alert
+                    alert("Morada não foi encontrada!");
+                    return;
+                }
+                const data = response.data[0];
+                const fullAddress = data.display_name;
+                addresses.push(fullAddress);
+                console.log('Address:', fullAddress);
+                updateAddressList();
+                if (addresses.length > 1) {
+                    calculateRoutes();
+                }
+            } catch (error) {
+                console.error('Error fetching address:', error);
+            }
+        }
+
+        // Function to calculate routes using Nearest Neighbor heuristic
+        async function calculateRoutes() {
+            const routeOrder = await calculateRouteOrder(addresses);
+            if (routeOrder.length > 1) {
+                // Remove existing polylines and markers
+                polylines.forEach(polyline => map.removeLayer(polyline));
+                polylines.length = 0;
+                markers.forEach(marker => map.removeLayer(marker));
+                markers.length = 0;
+
+                // Display the route on the map
+                for (let i = 0; i < routeOrder.length - 1; i++) {
+                    const start = await getCoordinates(addresses[routeOrder[i]]);
+                    const end = await getCoordinates(addresses[routeOrder[i + 1]]);
+                    await getRoute(start, end, i + 1); // Pass the route number
+                }
+            }
+        }
+
+        // Function to calculate the optimized route order using Nearest Neighbor heuristic
+        async function calculateRouteOrder(addresses) {
+            let routeOrder = [0]; // Start from the first address
+            while (routeOrder.length < addresses.length) {
+                let minDistance = Number.MAX_VALUE;
+                let nearestIndex = -1;
+                for (let i = 0; i < addresses.length; i++) {
+                    if (!routeOrder.includes(i)) {
+                        const start = await getCoordinates(addresses[routeOrder[routeOrder.length - 1]]);
+                        const end = await getCoordinates(addresses[i]);
+                        const distance = calculateDistance(start, end);
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            nearestIndex = i;
+                        }
+                    }
+                }
+                routeOrder.push(nearestIndex);
+            }
+            return routeOrder;
+        }
+
+        // Function to calculate distance between two points (straight line distance)
+        function calculateDistance(start, end) {
+            const dx = start.lat - end.lat;
+            const dy = start.lng - end.lng;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // Function to get route between two points
+        async function getRoute(start, end, routeNumber) {
+            try {
+                const response = await axios.get(`https://graphhopper.com/api/1/route?point=${start.lat},${start.lng}&point=${end.lat},${end.lng}&points_encoded=false&vehicle=bike&key=58206e1e-1673-430f-bc3e-b7bd6825d936`);
+                const route = response.data;
+
+                // Extracting route coordinates
+                const routeCoordinates = route.paths[0].points.coordinates;
+
+                // Draw route on map
+                const polyline = L.polyline(routeCoordinates.map(coord => [coord[1], coord[0]]), { color: 'blue' }).addTo(map);
+                polylines.push(polyline);
+
+                // Add marker with number for the end address
+                const marker = L.marker([end.lat, end.lng], { icon: createNumberedIcon(routeNumber) }).addTo(map);
+                markers.push(marker);
+            } catch (error) {
+                console.error('Error fetching route:', error);
+            }
+        }
+
+        // Get route when the document is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            updateAddressList();
+        });
+    </script>
+</body>
+
+</html>
