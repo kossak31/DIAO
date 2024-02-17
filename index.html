@@ -5,8 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DIÃO</title>
-    <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.css" />
-    <script src="http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.js"></script>
+    <link rel="stylesheet" href="css/leaflet.css" />
+    <link rel="stylesheet" href="css/leaflet.css.map" />
+    <script src="js/leaflet.js"></script>
+
+    <script src="js/axios.min.js"></script>
 
     <style>
         body,
@@ -35,21 +38,26 @@
         }
 
         #addressListContainer {
-    position: absolute;
-    bottom: 10px; /* Adjust the positioning */
-    left: 10px;
-    z-index: 2;
-    background-color: rgba(255, 255, 255, 0.8);
-    padding: 10px;
-    border-radius: 5px;
-    width: calc(100% - 20px); /* Adjust the width */
-    max-height: 50%; /* Set a maximum height */
-    overflow-y: auto; /* Enable vertical scrolling */
-}
+            position: absolute;
+            bottom: 10px;
+            /* Adjust the positioning */
+            left: 10px;
+            z-index: 2;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            width: calc(100% - 20px);
+            /* Adjust the width */
+            max-height: 50%;
+            /* Set a maximum height */
+            overflow-y: auto;
+            /* Enable vertical scrolling */
+        }
 
-li {
-    margin-bottom: 5px; /* Add some bottom margin */
-}
+        li {
+            margin-bottom: 5px;
+            /* Add some bottom margin */
+        }
 
         #addressList {
             list-style: none;
@@ -93,7 +101,7 @@ li {
     </div>
     <div id="addressData"></div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.24.0/axios.min.js"></script>
+    <script src="./js/axios.min.js"></script>
     <script>
         // Initialize Leaflet map
         const map = L.map('map').setView([38.761229299955474, -9.16666569629169], 15);
