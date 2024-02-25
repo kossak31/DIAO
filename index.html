@@ -271,6 +271,15 @@
         // Get route when the document is ready
         document.addEventListener('DOMContentLoaded', () => {
             updateAddressList();
+            // Get user's current location and center the map on it
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const { latitude, longitude } = position.coords;
+                    map.setView([latitude, longitude], 15);
+                });
+            } else {
+                alert("Geolocation is not supported by your browser");
+            }
         });
     </script>
 </body>
